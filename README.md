@@ -8,8 +8,13 @@ AOI
 ├── label
 ├── weights
 └── segmentation
----
 ```
+---
+## detect
+```terminal
+python main.py --op det 
+```
+---
 ## label -*al* : auxiliary tool for sample label
 Aruguments :
 ```
