@@ -120,12 +120,24 @@ class Detector():
         image_path = os.path.join(src_path,filename)
         samples,sample_positions,text_position = self.sampler(image_path)
         if samples is not None:
+            tensor_rot90 = torch.rot90(samples,k=1,dims=(2,3))
+            tensor_rot180 = torch.rot90(samples,k=2,dims=(2,3))            
+            tensor_rot270 = torch.rot90(samples,k=3,dims=(2,3))
+            samples = torch.cat((samples,tensor_rot90,tensor_rot180,tensor_rot270),0)
             with torch.no_grad():
                 outputs = self.model(samples.to(self.device))
             outputs = outputs.detach().cpu().numpy()
+            sub_outputs = np.split(outputs,4)
+            outputs = np.sum(sub_outputs,axis=0)/4
             output = self.sigmoid(outputs)
             output = output[:,1]
-
+            # filter
+            # left = np.roll(output,-1)
+            # right = np.roll(output,1)
+            # big_neighbor = np.where(left > right, left, right)
+            # small_neighbor = np.where(left > right, right, left)
+            # output = np.multiply(small_neighbor,output)   
+            # output = np.sqrt(output)           
             text_info = []
             defect_index = np.where(output>self.thr)
         
@@ -143,8 +155,8 @@ class Detector():
             find = False
             for idx,(x,y,p) in enumerate(text_info):
                 cv2.putText(origin,str(int(100*p)),(x,y),color=(255,255,0),fontScale=1,fontFace=cv2.FONT_HERSHEY_SIMPLEX,thickness=2)
-                    if int(100*p)>=50:
-                        find = True
+                if int(100*p)>=50:
+                    find = True
             if find:
                 if not os.path.exists(os.path.join(destination,"coating")):
                     os.mkdir(os.path.join(destination,"coating"))
