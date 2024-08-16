@@ -24,7 +24,9 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize([0.41],[0.31])
 ])
-
+mid_index = 62 // 2
+decreasing_part = np.linspace(1, 0, mid_index + 1)
+decrese_w = np.concatenate([decreasing_part[:-1],decreasing_part[::-1]])
 class Detector():
     def __init__(self, args, seg_model):
         self.args = args
@@ -56,7 +58,12 @@ class Detector():
         ax = xc + radius * math.cos(arc)
         ay = yc + radius * math.sin(arc)
         return int(ax),int(ay)
-
+        
+    @staticmethod
+    def softmax(x):
+        e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
+        return e_x / np.sum(e_x, axis=-1, keepdims=True)
+        
     def sampler(self,path):
         origin = self.imp.open_img(path, mode=image_process.ImageMode.BGR)
     
@@ -155,7 +162,7 @@ class Detector():
             find = False
             for idx,(x,y,p) in enumerate(text_info):
                 cv2.putText(origin,str(int(100*p)),(x,y),color=(255,255,0),fontScale=1,fontFace=cv2.FONT_HERSHEY_SIMPLEX,thickness=2)
-                if int(100*p)>=50:
+                if int(100*p)>=self.thr:
                     find = True
             if find:
                 if not os.path.exists(os.path.join(destination,"coating")):
