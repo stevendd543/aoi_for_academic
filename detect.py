@@ -24,14 +24,17 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize([0.41],[0.31])
 ])
-mid_index = 62 // 2
-decreasing_part = np.linspace(1, 0, mid_index + 1)
-decrese_w = np.concatenate([decreasing_part[:-1],decreasing_part[::-1]])
+
 class Detector():
     def __init__(self, args, seg_model):
         self.args = args
         self.resunet = seg_model
         self.thr = args.thr
+        self.stride = args.stride
+        mid_index = 90//self.stride +1
+        decreasing_part = np.linspace(1, 0, mid_index + 1)
+        self.decrese_w = np.concatenate([decreasing_part[:-1],decreasing_part[::-1]])
+
         if(self.args.gpu):
             self.device = 'cuda'
         else:
@@ -90,12 +93,18 @@ class Detector():
                 xc, yc, r = hc[0][0]  # Fetch the first circle info
                 arc = pi * angle / 180
 
-                if (idx <= 360/3/4 or idx>=360/4) and 'B' in os.path.basename(path): # regulate right side of B-image 
-                    r = r - 60* decrese_w[p]
-                    p += 1
-                sx = int(xc + r * math.cos(arc))
-                sy = int(yc + r * math.sin(arc))
-                x_min,y_min,x_max,y_max = int(sx - sample_size/2),int(sy-sample_size/2),int(sx + sample_size/2),int(sy+sample_size/2)
+                if 'B' in os.path.basename(path):  # regulate right side of B-image
+                    offset = 90 / self.stride # split into 4 parts : 360/self.stride/4
+                    if idx <= offset*1: # 1/4
+                        r = r - 60* self.decrese_w[p]
+                        p += 1
+                    if idx >= offset*3: # 3/4
+                        r = r - 60* self.decrese_w[p]
+                        p += 1
+                # coordinates of sample and proability   
+                sx = int(xc + r * math.cos(arc)) # center of sample
+                sy = int(yc + r * math.sin(arc)) 
+                x_min,y_min,x_max,y_max = int(sx - sample_size/2),int(sy-sample_size/2),int(sx + sample_size/2),int(sy+sample_size/2) # corner of sample
                 x_outside, y_outside = self.get_aux_point(radius = 1.2*r ,xc=xc ,yc=yc, arc=arc)
                 if x_max>origin_.shape[1] or y_max>origin_.shape[0]:
                     origin_ = np.pad(origin_, pad_width=200,mode='constant',constant_values=0)
