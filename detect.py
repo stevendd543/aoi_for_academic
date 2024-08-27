@@ -67,11 +67,12 @@ class Detector():
         e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
         return e_x / np.sum(e_x, axis=-1, keepdims=True)
         
-    def sampler(self,path):
-        origin = self.imp.open_img(path, mode=image_process.ImageMode.BGR)
-    
-        origin_= self.imp.open_img(path)
-        seg_image_ = self.resunet.pre_processing(origin)
+   def sampler(self,path,decorator=None,amp = 0):
+        for_seg = self.imp.open_img(path, mode=image_process.ImageMode.BGR) 
+        origin_= self.imp.open_img(path) # clean gray type
+        if decorator is not None:
+            origin_ = decorator(origin_,amp)
+        seg_image_ = self.resunet.pre_processing(for_seg)
         seg_image = self.resunet.test(images=seg_image_, originImg=origin_)
         seg_image = self.imp.image_process(np.uint8(seg_image))
         hc = self.imp.houghCircle(img=seg_image)
@@ -130,7 +131,17 @@ class Detector():
     def sigmoid(x):
         s = 1/(1+np.exp(-1*x))
         return s
-
+        
+    def add_vibration(img, amplitude):
+        h, w, _ = img.shape
+        displacement_x = np.random.uniform(-amplitude, amplitude, (h, w))
+        displacement_y = np.random.uniform(-amplitude, amplitude, (h, w))
+        x, y = np.meshgrid(np.arange(w), np.arange(h))
+        x = (x + displacement_x).astype(np.float32)
+        y = (y + displacement_y).astype(np.float32)
+        vibrated_img = cv2.remap(img, x, y, interpolation=cv2.INTER_LINEAR)
+        return vibrated_img
+        
     def detect_and_save(self,src_path,filename,destination):
         strat = time.time()
         image_path = os.path.join(src_path,filename)
