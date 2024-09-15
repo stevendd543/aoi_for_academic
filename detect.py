@@ -67,7 +67,7 @@ class Detector():
         e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
         return e_x / np.sum(e_x, axis=-1, keepdims=True)
         
-   def sampler(self,path,decorator=None,amp = 0):
+    def sampler(self,path,decorator=None,amp = 0):
         for_seg = self.imp.open_img(path, mode=image_process.ImageMode.BGR) 
         origin_= self.imp.open_img(path) # clean gray type
         if decorator is not None:
