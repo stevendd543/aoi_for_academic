@@ -1,25 +1,34 @@
-import glob
-import math
+# import glob
+# import math
+# import os
+# import re
+# import shutil
+# import subprocess
+# import sys
+# import time
+
+# import cv2
+# import matplotlib.pyplot as plt
+# import numpy as np
+# import PIL.Image as Image
+# import torch
+# import torch.nn as nn
+# import torchvision.models as models
+# from torchvision import transforms
+# from torchvision.io import read_image
+# from torchvision.transforms import functional as TF
+# from enum import Enum
+# from models.resunet import create_resunet
 import os
-import re
-import shutil
-import subprocess
-import sys
-import time
+import math
+import logging
+from enum import Enum
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
-import PIL.Image as Image
-import torch
-import torch.nn as nn
-import torchvision.models as models
-from torchvision import transforms
-from torchvision.io import read_image
-from torchvision.transforms import functional as TF
-from enum import Enum
 from models.resunet import create_resunet
-
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 class ImageMode(Enum):
@@ -28,7 +37,10 @@ class ImageMode(Enum):
     GRAY = 2
 
 class ImageProcessor():
+
     def __init__(self, args):
+        self.logger = logging.getLogger(__name__)
+
         if(args is not None):
             self.op = args.op
             self.origin_data_path = args.oip
@@ -36,43 +48,133 @@ class ImageProcessor():
             self.stride = args.stride
             self.sample_size = 200
             self.des = args.srcdes
+
+        self.HOUGH_PARAMS = {
+            'dp': 1,
+            'min_dist': 200,
+            'param1': 20,
+            'param2': 20,
+            'min_radius': 1350,
+            'max_radius': 1430
+        }
+
+        self.ADAPTIVE_THRESH_PARAMS = {
+            'maxValue': 255,
+            'adaptiveMethod': cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            'thresholdType': cv2.THRESH_BINARY,
+            'blockSize': 5,
+            'C': 2
+        }
+
     @staticmethod
-    def open_img(path, mode = ImageMode.GRAY):
-        if(os.path.isdir(path)):
-            imgs = []
-            for i in os.listdir(path):
-                imgs.append(i)
-        else:
-            img = cv2.imread(path)
+    def open_img(path: Union[str, Path], mode: ImageMode = ImageMode.GRAY) -> np.ndarray:
+        """ open image
+        Args:
+            path: image path
+            mode: mode of opening image
+            
+        Returns:
+            numpy array
+            
+        Raises:
+            FileNotFoundError
+            ValueError
+        """      
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Image file not found: {path}")
+            
+        if path.is_dir():
+            raise ValueError(f"Path is a directory, not a file: {path}")
+            
+        try:
+            img = cv2.imread(str(path))
+            if img is None:
+                raise ValueError(f"Cannot read image file: {path}")
+                
             if mode == ImageMode.RGB:
                 return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             elif mode == ImageMode.BGR:
                 return img
-            else :
+            else:  # GRAY
                 return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                
+        except Exception as e:
+            raise ValueError(f"Error reading image {path}: {e}")
+        
     @staticmethod        
-    def write_img(img, destination):
-        cv2.imwrite(destination, img)      
+    def write_img(img: np.ndarray, destination: Union[str, Path]) -> bool:
+        """save image array
+        
+        Args:
+            img: image numpy array
+            destination: saving path
+            
+        Returns:
+            Status of svaing image
+        """
+        try:
+            destination = Path(destination)
+            destination.parent.mkdir(parents=True, exist_ok=True) 
+            return cv2.imwrite(str(destination), img)
+        except Exception as e:
+            logging.error(f"Error writing image to {destination}: {e}")
+            return False
     @staticmethod
     def list_folder(path):
         if(os.path.isdir(path)):
             return os.listdir(path)
         else:
             raise NotADirectoryError(f"Error: The path '{path}' is not a directory")
-    @staticmethod
-    def houghCircle(img, p1 = 20, p2 = 20, min_r = 1350, max_r = 1430):
-        return cv2.HoughCircles(img, cv2.HOUGH_GRADIENT,
-                                1, 200,
-                                param1=p1, param2=p2,
-                                minRadius=min_r, maxRadius=max_r)  
-    @staticmethod
-    def image_process(seg_image):
-        binary_image=cv2.adaptiveThreshold(seg_image, maxValue=255, 
-                                           adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                           thresholdType=cv2.THRESH_BINARY, 
-                                           blockSize=5,
-                                           C=2)
-        blurred = cv2.medianBlur(binary_image, 1, 0)
+        
+    def hough_circle(self, img: np.ndarray, **kwargs) -> Optional[np.ndarray]:
+        """hough circle
+        
+        Args:
+            img: image(gray)
+            **kwargs: hough parameters
+            
+        Returns:
+            np array or None if not find any hough circle
+        """
+        if len(img.shape) != 2:
+            raise ValueError("Input image must be grayscale")
+            
+    
+        params = {**self.HOUGH_PARAMS, **kwargs}
+        
+        circles = cv2.HoughCircles(
+            img, 
+            cv2.HOUGH_GRADIENT,
+            dp=params['dp'],
+            minDist=params['min_dist'],
+            param1=params['param1'],
+            param2=params['param2'],
+            minRadius=params['min_radius'],
+            maxRadius=params['max_radius']
+        )
+        
+        return circles
+   
+    def image_process(self, seg_image: np.ndarray) -> np.ndarray:
+        """image post-process
+        
+        Args:
+            seg_image: image after segmentation
+            
+        Returns:
+            binary image after processing
+        """
+        if seg_image is None or not isinstance(seg_image, np.ndarray):
+            raise ValueError("seg_image must be a valid numpy array")
+        
+        binary_image = cv2.adaptiveThreshold(
+            seg_image,
+            **self.ADAPTIVE_THRESH_PARAMS
+        )
+        
+        blurred = cv2.medianBlur(binary_image, 1)
+        
         return blurred
     
     @staticmethod
@@ -80,9 +182,14 @@ class ImageProcessor():
         arc = math.pi * angle / 180
         r = r*1
         return x + r * math.cos(arc),y + r * math.sin(arc)
+    
     @staticmethod
     def xywh2xyxy(x, y, w, h):
-        return int(x - w/2), int(y-h/2), int(x + w/2), int(y+h/2)
+        return (int(x - w/2),
+                int(y-h/2),
+                int(x + w/2),
+                int(y+h/2))
+    
     def label(self, path):
         assert self.stride % 2 == 0
         
@@ -137,16 +244,16 @@ class ImageProcessor():
                         cv2.imwrite(f"{self.des}/{na}.jpg", copy_origin[ymin:ymax, xmin:xmax])
                     else:
                         print("Warning: Not find Hough circle")
-         cv2.destroyAllWindows()
-      def segmentation(self):
-          network = create_resunet()
-        
-          for root, dirs, files in os.walk(self.origin_data_path):
-              for file in files:
-                  origin = self.open_img(os.path.join(root, file), mode=ImageMode.BGR)
-                  origin_= self.open_img(os.path.join(root, file))
-                  seg_image_ = network.pre_processing(origin)
-                  seg_image = network.test(images=seg_image_, originImg=origin_)
-                  print(f"Generating '{file}' segmentation...")
-                  self.write_img(seg_image,os.path.join(self.segmentation_path,file))
-                seg_image = self.image_process(np.uint8(seg_image))
+        cv2.destroyAllWindows()
+    def segmentation(self):
+        network = create_resunet()
+    
+        for root, dirs, files in os.walk(self.origin_data_path):
+            for file in files:
+                origin = self.open_img(os.path.join(root, file), mode=ImageMode.BGR)
+                origin_= self.open_img(os.path.join(root, file))
+                seg_image_ = network.pre_processing(origin)
+                seg_image = network.test(images=seg_image_, originImg=origin_)
+                print(f"Generating '{file}' segmentation...")
+                self.write_img(seg_image,os.path.join(self.segmentation_path,file))
+            seg_image = self.image_process(np.uint8(seg_image))
