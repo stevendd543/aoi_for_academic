@@ -1,53 +1,18 @@
 # AOI detection system
-# structure
-```
-AOI
-├── dataset
-│   ├── origin
-│   └── sample
-├── label
-├── weights
-└── segmentation
-```
----
-## detect
-```terminal
-python main.py --op det 
-```
----
-## label -*al* : auxiliary tool for sample label
-Aruguments :
-```
---text :  name of label text,being created if not exist
---oip  :  the folder of origin data
---sip  :  the folder of segmentation of origin data
---srcdes : saving destination of sample
-```
-Cmd :
-```terminal
-python main.py --oip dataset\origin --sip dataset\segmentation --text label\label.txt --srcdes dataset\train --op al
-```
----
-## segmentation -*sg* : Segmentation for CRS 
-Aruguments :
-```
---sip : path of folder that store results of segmentation.
---oip : the data folder that will be transformed to 
-segmentation image.
-```
-```terminal
-python main.py --op sg --sip segmentation --oip datset\origin
-```
----
-# training
-```
---label : text, default = label\label.txt
---dataset : folder default = dataset\train
---batch_size : default 32
---test_size : 0.1
---epochs : default 100
---pthname : 
-```
-```terminal
-python train 
-```
+This project provides tools for automated optical inspection (AOI) defect detection using deep learning models such as MobileNetV2, ResNet34, EfficientNet, and others.
+
+## Features
+ - Image segmentation and defect detection
+ - Supports multiple model architectures
+ - Easy inference and result saving
+
+## Customization
+To use other models, change model_type and weight_path in detect_test_image.py.
+
+## Usage
+- Prepare Model Weights
+Place your trained model weights in the weights/ folder.
+Example: weights/mobilenet_v2.pth
+
+- Run Detection
+Edit detect_test_image.py to set your model type, weight path, and image path.
